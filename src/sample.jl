@@ -315,6 +315,13 @@ function mcmcsample(
         @warn "Number of chains ($nchains) is greater than number of samples per chain ($N)"
     end
 
+    chain_name_prefix = "chain#"
+    if haskey(kwargs, :chain_name)
+        chain_name_prefix = kwargs[:chain_name]
+        kwargs = Dict(kwargs)
+        delete!(kwargs, :chain_name)
+    end
+
     # Copy the random number generator, model, and sample for each thread
     nchunks = min(nchains, Threads.nthreads())
     chunksize = cld(nchains, nchunks)
@@ -389,6 +396,7 @@ function mcmcsample(
                                 else
                                     initial_state[chainidx]
                                 end,
+                                chain_name="$chain_name_prefix$chainidx",
                                 kwargs...,
                             )
 
@@ -429,6 +437,13 @@ function mcmcsample(
     # Check if the number of chains is larger than the number of samples
     if nchains > N
         @warn "Number of chains ($nchains) is greater than number of samples per chain ($N)"
+    end
+
+    chain_name_prefix = "chain#"
+    if haskey(kwargs, :chain_name)
+        chain_name_prefix = kwargs[:chain_name]
+        kwargs = Dict(kwargs)
+        delete!(kwargs, :chain_name)
     end
 
     # Ensure that initial parameters and states are `nothing` or of the correct length
@@ -475,7 +490,7 @@ function mcmcsample(
 
             Distributed.@async begin
                 try
-                    function sample_chain(seed, initial_params, initial_state)
+                    function sample_chain(idx, seed, initial_params, initial_state)
                         # Seed a new random number generator with the pre-made seed.
                         Random.seed!(rng, seed)
 
@@ -488,6 +503,7 @@ function mcmcsample(
                             progress=false,
                             initial_params=initial_params,
                             initial_state=initial_state,
+                            chain_name="$chain_name_prefix$idx",
                             kwargs...,
                         )
 
@@ -498,7 +514,7 @@ function mcmcsample(
                         return chain
                     end
                     chains = Distributed.pmap(
-                        sample_chain, pool, seeds, _initial_params, _initial_state
+                        sample_chain, pool, 1:nchains, seeds, _initial_params, _initial_state
                     )
                 finally
                     # Stop updating the progress bar.
@@ -529,6 +545,13 @@ function mcmcsample(
         @warn "Number of chains ($nchains) is greater than number of samples per chain ($N)"
     end
 
+    chain_name_prefix = "chain#"
+    if haskey(kwargs, :chain_name)
+        chain_name_prefix = kwargs[:chain_name]
+        kwargs = Dict(kwargs)
+        delete!(kwargs, :chain_name)
+    end
+
     # Ensure that initial parameters and states are `nothing` or of the correct length
     check_initial_params(initial_params, nchains)
     check_initial_state(initial_state, nchains)
@@ -555,6 +578,7 @@ function mcmcsample(
             progressname=string(progressname, " (Chain ", i, " of ", nchains, ")"),
             initial_params=initial_params,
             initial_state=initial_state,
+            chain_name="$chain_name_prefix$i",
             kwargs...,
         )
     end
